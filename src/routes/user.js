@@ -3,7 +3,8 @@ const validator = require("validator");
 const passwordValidator = require("password-validator");
 const router = express.Router();
 const user = require("../db/user");
-// const contactUs = require("../db/contactus");
+const jwt = require("jsonwebtoken");
+const jwtKey = "my-key";
 
 //http://localhost:5000/user/signup
 router.post("/signup", async (req, resp) => {
@@ -30,7 +31,7 @@ router.post("/signup", async (req, resp) => {
       password: password,
       confirmpassword: confirmpassword,
     };
-    //   let Token;
+      let Token;
     console.log(result);
     if (!validator.isEmail(email)) {
       return resp.status(203).send({ message: "Invalid email address" });
@@ -48,16 +49,22 @@ router.post("/signup", async (req, resp) => {
     let userCheck = await user.findOne({ email: email });
     console.log("uZER chack:", userCheck);
     if (userCheck) {
-      return resp.status(203).send({ message: "User already exists." });
+      return resp.status(203).send({ message: "user already exists" });
     } else {
-      let valu = new user(result);
-      let data = await valu.save();
-      data = data.toObject();
-      //   resp.status(200).send({ data, auth: Token });
-      resp
-        .status(200)
-        .send({ data, message: "sign up successful , Please login now." });
+      // this jwt token will be generated when we signup
+      jwt.sign({ result }, jwtKey, { expiresIn: "2h" }, (err, token) => {
+        if (err) {
+          resp.status(203).send({ message: "something went wrong or token expired" });
+        } else {
+          Token = token;
+        }
+      });
     }
+    let valu = new user(result);
+    let data = await valu.save();
+    data = data.toObject();
+    resp.status(200).send({ data, auth: Token , message:"User Created Successfully. Please Login Now." });
+
   } catch (err) {
     console.log("end Err", err);
     resp.status(203).send({
@@ -76,7 +83,13 @@ router.post("/login", async (req, res) => {
   try {
     if (userInfo) {
       if (req.body.password === userInfo.password) {
-        res.status(200).send({ userInfo, message: "User Exists" });
+        jwt.sign({ userInfo }, jwtKey, { expiresIn: "2h" }, (err, token) => {
+          if (err) {
+            res.send({ message: "something went wrong or token expired" });
+          } else {
+            res.status(200).send({ userInfo, message: "User Exists", auth:token });
+          }
+        });
       } else {
         res.status(203).send({ message: "wrong password" });
       }
